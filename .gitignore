@@ -1,0 +1,9 @@
+# Personal / local package lists — never publish
+*.local.txt
+my-packages.local.txt
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NpmChecker — track your npm packages</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📦</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#1a1a2e;--bg2:#20203a;--card:#23233f;--text:#e0e0e0;--muted:#9a9ab0;
+    --accent:#00d4ff;--line:#33334d;--green:#3ddc97;--amber:#ffcc66;--dim:#6a6a85;--red:#ff6b6b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;padding:24px 16px}
+  .wrap{max-width:1200px;margin:0 auto}
+  .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  h1{font-size:1.6rem;font-weight:700;letter-spacing:-.5px}
+  h1 span{color:var(--accent)}
+  .grow{flex:1}
+  .sub{color:var(--muted);font-size:.88rem;margin-top:4px}
+  button{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 13px;font-size:.85rem;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#0a0a18;border-color:var(--accent);font-weight:600}
+  .icon{font-size:1rem}
+  .status{font-size:.82rem;color:var(--muted)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .kpi .n{font-size:1.4rem;font-weight:700;color:var(--accent)}
+  .kpi .l{font-size:.76rem;color:var(--muted);margin-top:2px}
+  section{margin-top:26px}
+  h2{font-size:1.05rem;color:var(--accent);margin-bottom:12px}
+  .chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;height:320px}
+  .tablewrap{overflow-x:auto;border-radius:12px}
+  table{width:100%;border-collapse:collapse;font-size:.83rem;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;cursor:pointer;user-select:none;background:var(--bg2)}
+  th:hover{color:var(--accent)}
+  tr:hover td{background:#262647}
+  td a{color:var(--accent);text-decoration:none}
+  td a:hover{text-decoration:underline}
+  .tag{font-size:.68rem;padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-primary{color:var(--accent);border-color:var(--accent)}
+  .t-internal{color:var(--dim);border-color:var(--dim)}
+  .t-legacy{color:var(--amber);border-color:var(--amber)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+  .active{background:var(--green)}.warm{background:var(--amber)}.dormant{background:var(--dim)}
+  .sig-real{color:var(--green)}.sig-auto{color:var(--red)}.sig-mixed{color:var(--amber)}.sig-none{color:var(--dim)}
+  .burst{color:var(--red);font-weight:600}
+  .err{color:var(--red);font-size:.75rem}
+  .ghi{display:inline-flex;vertical-align:middle;margin-right:7px;color:var(--muted)}
+  .ghi:hover{color:var(--accent)}
+  .ghi svg{width:14px;height:14px;fill:currentColor;display:block}
+  .note{background:var(--bg2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:6px;color:var(--muted);font-size:.82rem;margin-top:14px}
+  footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.78rem;text-align:center}
+  /* overlay */
+  .overlay{position:fixed;inset:0;background:rgba(10,10,24,.82);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:640px;width:100%;padding:26px 28px;max-height:90vh;overflow:auto}
+  .modal h2{font-size:1.3rem}
+  .modal p{color:var(--muted);font-size:.9rem;margin:8px 0}
+  textarea{width:100%;min-height:150px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;resize:vertical;margin-top:8px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  .hide{display:none}
+  .muted{color:var(--muted)}
+  label.file{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  ul.how{color:var(--muted);font-size:.88rem;margin:8px 0 0 18px}
+  ul.how li{margin:4px 0}
+  /* loader */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:0 0 auto}
+  .loaderhead{display:flex;align-items:center;gap:14px}
+  .progress{height:6px;background:var(--bg2);border-radius:4px;overflow:hidden;margin-top:14px}
+  .progress>i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+  .log{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;height:240px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.77rem;line-height:1.55}
+  .log .l-ok{color:var(--green)}.log .l-warn{color:var(--amber)}.log .l-dim{color:var(--muted)}.log .l-acc{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Welcome / first-run overlay ===== -->
+  <div id="welcome" class="overlay hide">
+    <div class="modal">
+      <h2>📦 Npm<span style="color:var(--accent)">Checker</span></h2>
+      <p>A tiny dashboard for the npm packages <b>you</b> care about. It pulls download history, release info, GitHub stars/PRs, and flags whether traffic looks like <b>real use vs. bots/mirrors</b> — all live in your browser. Nothing is sent anywhere; your list is stored locally on this device.</p>
+      <ul class="how">
+        <li>Paste package names below (one per line, or comma/space separated).</li>
+        <li>Scoped names work: <code>@scope/name</code>. Versions are ignored (<code>lodash@4.17.21</code> → <code>lodash</code>).</li>
+        <li>Or upload a <code>.txt</code> file with one name per line.</li>
+        <li>Change the list anytime via the ⚙ Settings button.</li>
+      </ul>
+      <textarea id="welcome-input" placeholder="react&#10;lodash&#10;chalk&#10;@types/node"></textarea>
+      <div class="row">
+        <button class="primary" onclick="startFromWelcome()">Start tracking →</button>
+        <label class="file"><input type="file" id="welcome-file" accept=".txt,text/plain" class="hide" onchange="fileToTextarea(event,'welcome-input')"><button onclick="this.previousElementSibling.click()">⬆ Upload .txt</button></label>
+        <span class="status" id="welcome-count"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Settings overlay ===== -->
+  <div id="settings" class="overlay hide">
+    <div class="modal">
+      <h2>⚙ Settings — tracked packages</h2>
+      <p>Edit the full list (this replaces what's tracked), or use the buttons below.</p>
+      <textarea id="settings-input" placeholder="one package per line"></textarea>
+      <div class="row">
+        <button class="primary" onclick="saveSettings()">💾 Save list</button>
+        <label class="file"><input type="file" id="settings-file" accept=".txt,text/plain" class="hide" onchange="appendFile(event)"><button onclick="this.previousElementSibling.click()">⬆ Upload &amp; append</button></label>
+        <button onclick="clearAll()">🗑 Clear all</button>
+        <button onclick="closeSettings()">Cancel</button>
+      </div>
+      <p class="muted" style="margin-top:14px;font-size:.8rem">Tip: paste to <b>replace</b>, upload to <b>append</b>. List is saved in this browser's local storage only.</p>
+    </div>
+  </div>
+
+  <!-- ===== Loader overlay ===== -->
+  <div id="loader" class="overlay hide">
+    <div class="modal" style="max-width:560px">
+      <div class="loaderhead">
+        <div class="spinner"></div>
+        <div>
+          <h2 id="loader-title" style="font-size:1.15rem">Collecting data…</h2>
+          <div class="muted" id="loader-sub" style="font-size:.82rem">starting…</div>
+        </div>
+      </div>
+      <div class="progress"><i id="loader-bar"></i></div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <!-- ===== Header ===== -->
+  <div class="top">
+    <div>
+      <h1>📦 Npm<span>Checker</span></h1>
+      <div class="sub" id="subline">—</div>
+    </div>
+    <div class="grow"></div>
+    <button onclick="loadAll(true)"><span class="icon">↻</span> Reload</button>
+    <button onclick="openSettings()"><span class="icon">⚙</span> Settings</button>
+  </div>
+
+  <div id="app" class="hide">
+    <div class="cards" id="kpis"></div>
+
+    <section>
+      <h2>Aggregate daily downloads — last 12 months (bursts in red)</h2>
+      <div class="chartbox"><canvas id="chart"></canvas></div>
+      <div class="note" id="burstnote">—</div>
+    </section>
+
+    <section>
+      <h2>Packages — click a header to sort</h2>
+      <div class="tablewrap">
+        <table id="tbl">
+          <thead><tr>
+            <th data-k="name">Package</th>
+            <th data-k="type">Type</th>
+            <th data-k="latest">Latest</th>
+            <th data-k="published">Published</th>
+            <th data-k="d7">7d</th>
+            <th data-k="d30">30d</th>
+            <th data-k="d365">365d</th>
+            <th data-k="peak">Peak day</th>
+            <th data-k="signal">Use signal</th>
+            <th data-k="dependents">Dependents</th>
+            <th data-k="stars">★</th>
+            <th data-k="prs">PRs</th>
+            <th data-k="state">Status</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="note">
+        <b>Use signal</b> estimates real adoption vs automation from the download shape:
+        <span class="sig-real">looks real</span> (weekday rhythm, steady floor) ·
+        <span class="sig-mixed">mixed</span> ·
+        <span class="sig-auto">mostly automated</span> (flat/weekend-equal or a single post-publish spike — typical of mirrors &amp; scanners) ·
+        <span class="sig-none">none</span> (no downloads). It's a heuristic, not proof.
+        <b>Status</b>: <span class="dot active"></span>active (≥30/30d) · <span class="dot warm"></span>warm (1–29) · <span class="dot dormant"></span>dormant.
+      </div>
+    </section>
+  </div>
+
+  <footer>NpmChecker · static, client-side only · data from registry.npmjs.org, api.npmjs.org, api.deps.dev &amp; api.github.com · results cached per day · GitHub API is unauthenticated (60 req/h per IP).</footer>
+</div>
+
+<script>
+const LS_KEY="npmchecker:packages";
+const fmt=n=>n==null?"–":n.toLocaleString("en-US");
+const errLabel=c=>c==='rate'?'rate-limited':c==='network'?'network error':('HTTP '+c);
+const npmUrl=n=>"https://www.npmjs.com/package/"+n;
+const GH_SVG='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+const ghIcon=repo=>repo?`<a class="ghi" href="https://github.com/${repo}" target="_blank" title="Open ${repo} on GitHub">${GH_SVG}</a>`:'';
+let PKGS=[], chart, sortKey="type", sortDir=1;
+
+/* ---------- list parsing / storage ---------- */
+function parseList(text){
+  const raw=text.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
+  const out=[];
+  for(let s of raw){
+    s=s.replace(/^["'`]|["'`]$/g,"");
+    const at=s.lastIndexOf("@");          // strip version, keep leading scope @
+    if(at>0) s=s.slice(0,at);
+    if(!s) continue;
+    if(!out.includes(s)) out.push(s);
+  }
+  return out;
+}
+function getList(){ try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch(e){return []} }
+function setList(arr){ localStorage.setItem(LS_KEY,JSON.stringify(arr)); }
+
+/* ---------- daily result cache ---------- */
+const CACHE_KEY="npmchecker:cache";
+const todayStr=()=>new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD (local)
+function sameList(a,b){ if(!a||!b||a.length!==b.length) return false; const s=new Set(a); return b.every(x=>s.has(x)); }
+function loadCache(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY))}catch(e){return null} }
+function saveCache(){
+  try{ localStorage.setItem(CACHE_KEY,JSON.stringify({date:todayStr(),list:getList(),pkgs:PKGS,savedAt:Date.now()})); }
+  catch(e){ log("⚠ cache not saved ("+(e.name||"error")+") — result too large or storage full","warn"); }
+}
+
+/* ---------- loader / activity log ---------- */
+let loading=false;
+function showLoader(title){
+  loading=true;
+  document.getElementById("log").innerHTML="";
+  document.getElementById("loader-title").textContent=title||"Collecting data…";
+  setProgress(0,"starting…");
+  document.getElementById("loader").classList.remove("hide");
+}
+function hideLoader(){ loading=false; document.getElementById("loader").classList.add("hide"); }
+function setProgress(pct,sub){
+  document.getElementById("loader-bar").style.width=Math.max(0,Math.min(100,pct))+"%";
+  if(sub!=null) document.getElementById("loader-sub").textContent=sub;
+}
+function log(msg,cls){
+  const box=document.getElementById("log");
+  if(!box) return;
+  const t=new Date().toLocaleTimeString();
+  box.insertAdjacentHTML("beforeend",`<div class="l-${cls||'dim'}">[${t}] ${msg}</div>`);
+  box.scrollTop=box.scrollHeight;
+}
+
+/* ---------- networking: per-domain queue + retry/backoff ---------- */
+const DOMAIN_CFG={
+  "registry.npmjs.org":{gap:180,retries:3},
+  "api.npmjs.org":{gap:220,retries:3},
+  "api.deps.dev":{gap:300,retries:3},
+  "api.github.com":{gap:1300,retries:2},
+  default:{gap:300,retries:3}
+};
+const _chains={}, _lastTs={}, _cooldown={};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const hostOf=u=>{ try{return new URL(u).host}catch(e){return "default"} };
+const cfgOf=h=>DOMAIN_CFG[h]||DOMAIN_CFG.default;
+function backoff(a){ return Math.min(8000,500*Math.pow(2,a))+Math.random()*250; }
+function retryAfterMs(r,a){ const ra=r.headers.get("retry-after"); if(ra){const s=parseInt(ra,10); if(!isNaN(s)) return Math.min(20000,s*1000);} return backoff(a); }
+function isRateLimited(r){ return r.status===429 || (r.status===403 && r.headers.get("x-ratelimit-remaining")==="0"); }
+
+// serialize requests per host so we never hammer one domain
+function jget(url,opts={}){
+  const host=hostOf(url);
+  const prev=_chains[host]||Promise.resolve();
+  const run=prev.then(()=>_doFetch(url,host,opts));
+  _chains[host]=run.catch(()=>{});
+  return run;
+}
+async function _doFetch(url,host,opts){
+  const c=cfgOf(host), retries=opts.retries??c.retries;
+  if(_cooldown[host]&&Date.now()<_cooldown[host]){ const e=new Error("rate"); e.rate=true; throw e; }
+  const since=Date.now()-(_lastTs[host]||0);
+  if(since<c.gap) await sleep(c.gap-since);
+  let attempt=0,lastErr;
+  while(attempt<=retries){
+    _lastTs[host]=Date.now();
+    let r;
+    try{ r=await fetch(url); }
+    catch(netErr){                               // network/CORS failure → retry
+      lastErr=netErr;
+      if(attempt>=retries) throw new Error("network");
+      log("↻ retry "+(attempt+1)+"/"+retries+" "+host+" (network)","warn");
+      await sleep(backoff(attempt)); attempt++; continue;
+    }
+    if(isRateLimited(r)){                          // stop hammering this host for the run
+      const reset=parseInt(r.headers.get("x-ratelimit-reset")||"0",10);
+      _cooldown[host]=reset?reset*1000:Date.now()+5*60000;
+      const e=new Error("rate"); e.rate=true; throw e;
+    }
+    if(r.status>=500){                            // server error → retry
+      if(attempt>=retries){ const e=new Error(String(r.status)); e.status=r.status; throw e; }
+      log("↻ retry "+(attempt+1)+"/"+retries+" "+host+" (HTTP "+r.status+")","warn");
+      await sleep(retryAfterMs(r,attempt)); attempt++; continue;
+    }
+    if(!r.ok){ const e=new Error(String(r.status)); e.status=r.status; throw e; } // 404 etc → no retry
+    return r.json();
+  }
+  throw lastErr||new Error("failed");
+}
+
+/* ---------- data fetch (all client-side) ---------- */
+async function fetchMeta(p){
+  const enc=p.name.replace("/","%2F");
+  try{
+    const d=await jget("https://registry.npmjs.org/"+enc);
+    const latest=(d["dist-tags"]||{}).latest;
+    const lv=(d.versions||{})[latest]||{};
+    let repo=lv.repository||d.repository; if(repo&&typeof repo==="object") repo=repo.url;
+    p.repoFull=parseRepo(repo);
+    p.latest=latest||"–";
+    const t=d.time||{}; p.published=(t[latest]||"").slice(0,10)||"–";
+    p.desc=(lv.description||d.description||"");
+    p.type=classifyType(p);
+  }catch(e){ p.metaerr=e.message; p.type="?"; p.latest="–"; p.published="–"; }
+}
+function parseRepo(url){
+  if(!url) return null;
+  const m=url.match(/github\.com[/:]([^/]+)\/([^/.#]+)/i);
+  return m?`${m[1]}/${m[2]}`:null;
+}
+function classifyType(p){
+  const d=(p.desc||"").toLowerCase();
+  if(/internal\s*--\s*install|build of `|-(linux|darwin|win32)-/.test(d)||/-(linux|darwin|win32)-(x64|arm64)$/.test(p.name)) return "internal";
+  if(p.published&&p.published!=="–"){
+    const age=(Date.now()-new Date(p.published))/86400000;
+    if(age>365) return "legacy";
+  }
+  return "primary";
+}
+async function fetchDownloads(p){
+  const enc=p.name.replace("/","%2F");
+  try{
+    const d=await jget("https://api.npmjs.org/downloads/range/last-year/"+enc);
+    const days=d.downloads||[];
+    p.series=days.map(x=>x.downloads); p.dates=days.map(x=>x.day);
+    p.d365=p.series.reduce((a,b)=>a+b,0);
+    p.d30=p.series.slice(-30).reduce((a,b)=>a+b,0);
+    p.d7=p.series.slice(-7).reduce((a,b)=>a+b,0);
+    let mi=0; p.series.forEach((v,i)=>{if(v>p.series[mi])mi=i;});
+    p.peak=p.series.length?p.series[mi]:0; p.peakDay=p.series.length?p.dates[mi]:null;
+    p.signal=useSignal(p);
+  }catch(e){ p.dlerr=e.message; p.series=[]; p.dates=[]; }
+}
+async function fetchDependents(p){
+  if(!p.latest||p.latest==="–") return;
+  const url="https://api.deps.dev/v3alpha/systems/npm/packages/"+encodeURIComponent(p.name)+"/versions/"+encodeURIComponent(p.latest)+":dependents";
+  try{
+    const d=await jget(url);
+    p.dependents = d.dependentCount ?? null;
+    p.directDeps = d.directDependentCount ?? null;
+  }catch(e){ p.deperr=e.message; }
+}
+async function fetchGithub(p){
+  if(!p.repoFull) return;
+  try{ const r=await jget("https://api.github.com/repos/"+p.repoFull); p.stars=r.stargazers_count; }
+  catch(e){ p.gherr=e.message; }
+  try{ const pr=await jget("https://api.github.com/repos/"+p.repoFull+"/pulls?state=open&per_page=100");
+       p.prs=Array.isArray(pr)?pr.length:null; }catch(e){}
+}
+
+/* ---------- heuristics ---------- */
+function useSignal(p){
+  const v=p.series||[]; if(!v.length) return {k:"none",t:"none"};
+  if(p.d30===0) return {k:"none",t:"none"};
+  const tot=p.d365||1;
+  let wd=0,we=0,wdn=0,wen=0;
+  v.forEach((val,i)=>{ const day=new Date(p.dates[i]).getUTCDay();
+    if(day===0||day===6){we+=val;wen++;} else {wd+=val;wdn++;} });
+  const wdAvg=wdn?wd/wdn:0, weAvg=wen?we/wen:0;
+  const weekendRatio=wdAvg?weAvg/wdAvg:1;
+  const spikeShare=p.peak/tot;
+  const nonzeroDays=v.filter(x=>x>0).length/v.length;
+  if(spikeShare>0.25 && tot<3000) return {k:"auto",t:"mostly automated"};
+  if(nonzeroDays<0.3) return {k:"auto",t:"mostly automated"};
+  if(weekendRatio<0.8 && nonzeroDays>0.6) return {k:"real",t:"looks real"};
+  if(weekendRatio>0.92) return {k:"auto",t:"mostly automated"};
+  return {k:"mixed",t:"mixed"};
+}
+function statusOf(p){
+  if(p.d30==null) return {c:"dormant",t:"?"};
+  if(p.d30>=30) return {c:"active",t:"active"};
+  if(p.d30>=1) return {c:"warm",t:"warm"};
+  return {c:"dormant",t:"dormant"};
+}
+
+/* ---------- welcome ---------- */
+function fileToTextarea(ev,id){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=()=>{
+    const ta=document.getElementById(id);
+    ta.value=(ta.value?ta.value+"\n":"")+r.result;
+    if(id==="welcome-input") updateWelcomeCount();
+  }; r.readAsText(f);
+}
+function updateWelcomeCount(){
+  const n=parseList(document.getElementById("welcome-input").value).length;
+  document.getElementById("welcome-count").textContent=n?n+" package(s) detected":"";
+}
+function startFromWelcome(){
+  const list=parseList(document.getElementById("welcome-input").value);
+  if(!list.length){ alert("Paste at least one package name."); return; }
+  setList(list); document.getElementById("welcome").classList.add("hide");
+  boot();
+}
+
+/* ---------- settings ---------- */
+function openSettings(){
+  document.getElementById("settings-input").value=getList().join("\n");
+  document.getElementById("settings").classList.remove("hide");
+}
+function closeSettings(){ document.getElementById("settings").classList.add("hide"); }
+function saveSettings(){
+  const list=parseList(document.getElementById("settings-input").value);
+  if(!list.length){ if(!confirm("Empty list — clear everything and show the welcome screen?")) return; setList([]); closeSettings(); boot(); return; }
+  setList(list); closeSettings(); boot();
+}
+function appendFile(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=()=>{
+    const ta=document.getElementById("settings-input");
+    ta.value=(ta.value?ta.value+"\n":"")+r.result;
+  }; r.readAsText(f);
+}
+function clearAll(){
+  if(!confirm("Remove all tracked packages?")) return;
+  setList([]); try{localStorage.removeItem(CACHE_KEY);}catch(e){} closeSettings(); boot();
+}
+
+/* ---------- render ---------- */
+function renderKpis(){
+  const t365=PKGS.reduce((a,p)=>a+(p.d365||0),0);
+  const t30=PKGS.reduce((a,p)=>a+(p.d30||0),0);
+  const active=PKGS.filter(p=>p.d30>=30).length;
+  const withDeps=PKGS.filter(p=>(p.dependents||0)>0).length;
+  const stars=PKGS.reduce((a,p)=>a+(p.stars||0),0);
+  const k=[["Packages",PKGS.length],["Downloads 365d",fmt(t365)],["Downloads 30d",fmt(t30)],
+           ["Active",active],["With dependents",withDeps],["Total ★",fmt(stars)]];
+  document.getElementById("kpis").innerHTML=k.map(([l,n])=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+}
+function renderTable(){
+  const tb=document.querySelector("#tbl tbody");
+  const ord={primary:0,internal:1,legacy:2,"?":3};
+  const sk={none:0,auto:1,mixed:2,real:3};
+  const arr=[...PKGS].sort((a,b)=>{
+    let x,y;
+    if(sortKey==="type"){x=ord[a.type];y=ord[b.type];}
+    else if(sortKey==="signal"){x=sk[(a.signal||{}).k];y=sk[(b.signal||{}).k];}
+    else if(["name","published","latest"].includes(sortKey)) return (''+a[sortKey]).localeCompare(''+b[sortKey])*sortDir;
+    else {x=a[sortKey];y=b[sortKey];}
+    x=x??-1;y=y??-1;
+    if(x!==y) return (x-y)*sortDir;
+    return (b.d365||0)-(a.d365||0); // tiebreaker: most downloaded first
+  });
+  tb.innerHTML=arr.map(p=>{
+    const st=statusOf(p), sg=p.signal||{k:"none",t:"–"};
+    const isBurst=p.peak&&p.d365&&(p.peak>Math.max(50,(p.d365/180)*6));
+    return `<tr>
+      <td>${ghIcon(p.repoFull)}<a href="${npmUrl(p.name)}" target="_blank">${p.name}</a>${p.metaerr?'<br><span class="err">not found</span>':''}</td>
+      <td><span class="tag t-${p.type}">${p.type}</span></td>
+      <td>${p.latest||'–'}</td>
+      <td>${p.published||'–'}</td>
+      <td>${p.dlerr?'<span class="err">'+errLabel(p.dlerr)+'</span>':fmt(p.d7)}</td>
+      <td>${fmt(p.d30)}</td>
+      <td>${fmt(p.d365)}</td>
+      <td>${p.peak?`<span class="${isBurst?'burst':''}">${fmt(p.peak)}</span><br><span class="status">${p.peakDay||''}</span>`:'–'}</td>
+      <td><span class="sig-${sg.k}">${sg.t}</span></td>
+      <td>${p.dependents==null?(p.deperr?'<span class="err">'+errLabel(p.deperr)+'</span>':'…'):`<b style="color:${p.dependents>0?'var(--green)':'var(--dim)'}">${fmt(p.dependents)}</b>${p.directDeps!=null?`<br><span class="status">${fmt(p.directDeps)} direct</span>`:''}`}</td>
+      <td>${p.repoFull?(p.stars==null?(p.gherr?'<span class="err">'+errLabel(p.gherr)+'</span>':'…'):fmt(p.stars)):'–'}</td>
+      <td>${p.repoFull?(p.prs==null?'…':p.prs):'–'}</td>
+      <td><span class="dot ${st.c}"></span>${st.t}</td>
+    </tr>`;
+  }).join("");
+}
+function renderChart(){
+  const base=PKGS.find(p=>p.dates&&p.dates.length); if(!base){ if(chart)chart.destroy(); return; }
+  const labels=base.dates, agg=new Array(labels.length).fill(0);
+  PKGS.forEach(p=>{ if(p.series&&p.series.length===labels.length) p.series.forEach((v,i)=>agg[i]+=v); });
+  const mean=agg.reduce((a,b)=>a+b,0)/agg.length;
+  const std=Math.sqrt(agg.reduce((a,b)=>a+(b-mean)**2,0)/agg.length);
+  const thr=Math.max(mean+4*std,200);
+  const ptC=agg.map(v=>v>thr?"#ff6b6b":"rgba(0,0,0,0)"), ptR=agg.map(v=>v>thr?4:0);
+  if(chart)chart.destroy();
+  chart=new Chart(document.getElementById("chart"),{type:"line",
+    data:{labels,datasets:[{data:agg,borderColor:"#00d4ff",backgroundColor:"rgba(0,212,255,.12)",fill:true,tension:.25,pointRadius:ptR,pointBackgroundColor:ptC,borderWidth:1.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:"#9a9ab0",maxTicksLimit:12},grid:{color:"#2a2a44"}},y:{ticks:{color:"#9a9ab0"},grid:{color:"#2a2a44"}}}}});
+  const bursts=[]; agg.forEach((v,i)=>{if(v>thr)bursts.push({day:labels[i],v});});
+  const note=document.getElementById("burstnote");
+  if(!bursts.length){ note.textContent="No major bursts — downloads are steady or low."; return; }
+  const lines=bursts.slice(-8).map(b=>{ const i=labels.indexOf(b.day); let top=null,tv=0;
+    PKGS.forEach(p=>{if(p.series&&p.series.length===labels.length&&p.series[i]>tv){tv=p.series[i];top=p.name;}});
+    return `<b>${b.day}</b>: ${fmt(b.v)} dl (mostly <code>${top}</code> ≈ ${fmt(tv)})`; });
+  note.innerHTML="<b>Bursts (day &gt; "+fmt(Math.round(thr))+", usually mirrors/scanners):</b><br>"+lines.join("<br>");
+}
+
+/* ---------- orchestration ---------- */
+async function loadAll(force=false){
+  if(loading) return;
+  const list=getList(); if(!list.length){ boot(); return; }
+  const sub=document.getElementById("subline");
+
+  // Use today's cached result unless forced (Reload) or the list changed
+  if(!force){
+    const c=loadCache();
+    if(c && c.date===todayStr() && sameList(c.list,list) && Array.isArray(c.pkgs)){
+      PKGS=c.pkgs;
+      renderKpis(); renderTable(); renderChart();
+      sub.textContent=PKGS.length+" packages · cached "+c.date+" · hit Reload to refresh";
+      return;
+    }
+  }
+
+  PKGS=list.map(n=>({name:n}));
+  const n=PKGS.length;
+  showLoader("Collecting data for "+n+" package"+(n>1?"s":"")+"…");
+
+  // Phase 1 — metadata
+  log("Fetching package metadata (registry.npmjs.org)…","acc");
+  for(let i=0;i<n;i++){ const p=PKGS[i];
+    setProgress(i/n*25,"Metadata "+(i+1)+"/"+n+" — "+p.name);
+    await fetchMeta(p);
+    log(p.metaerr ? "⚠ "+p.name+" — not found on npm"
+                  : "• "+p.name+" → "+p.type+" · v"+p.latest+(p.repoFull?" · "+p.repoFull:" · no repo"),
+        p.metaerr?"warn":"ok");
+  }
+  renderKpis(); renderTable();
+
+  // Phase 2 — downloads
+  log("Fetching 12-month download history (api.npmjs.org)…","acc");
+  for(let i=0;i<n;i++){ const p=PKGS[i];
+    setProgress(25+i/n*25,"Downloads "+(i+1)+"/"+n+" — "+p.name);
+    await fetchDownloads(p);
+    log(p.dlerr ? "⚠ "+p.name+" — downloads "+errLabel(p.dlerr)
+                : "• "+p.name+": "+fmt(p.d30)+"/30d · "+fmt(p.d365)+"/365d"+(p.signal?" · "+p.signal.t:""),
+        p.dlerr?"warn":"dim");
+  }
+  renderKpis(); renderTable(); renderChart();
+
+  // Phase 3 — dependents
+  log("Fetching dependents (deps.dev)…","acc");
+  for(let i=0;i<n;i++){ const p=PKGS[i];
+    setProgress(50+i/n*25,"Dependents "+(i+1)+"/"+n+" — "+p.name);
+    await fetchDependents(p);
+    log(p.deperr ? "⚠ "+p.name+" — dependents "+errLabel(p.deperr)
+                 : "• "+p.name+": "+fmt(p.dependents)+" dependents"+(p.directDeps!=null?" ("+fmt(p.directDeps)+" direct)":""),
+        p.deperr?"warn":"dim");
+    renderTable(); renderKpis();
+  }
+
+  // Phase 4 — GitHub
+  const repos=PKGS.filter(p=>p.repoFull);
+  log("Fetching GitHub stars / PRs — "+repos.length+" repo"+(repos.length===1?"":"s")+"…","acc");
+  for(let i=0;i<repos.length;i++){ const p=repos[i];
+    setProgress(75+(i/(repos.length||1))*25,"GitHub "+(i+1)+"/"+repos.length+" — "+p.repoFull);
+    await fetchGithub(p);
+    log(p.gherr ? "⚠ "+p.repoFull+" — "+(p.gherr==='rate'?'rate-limited (GitHub 60/h)':errLabel(p.gherr))
+                : "• "+p.repoFull+": ★"+fmt(p.stars)+" · "+(p.prs==null?"?":p.prs)+" open PR"+(p.prs===1?"":"s"),
+        p.gherr?"warn":"dim");
+    renderTable(); renderKpis();
+  }
+
+  setProgress(100,"Done");
+  saveCache();
+  log("✓ Done — "+n+" package"+(n>1?"s":"")+" updated &amp; cached for "+todayStr()+".","ok");
+  sub.textContent=n+" packages · updated "+new Date().toLocaleString();
+  await sleep(550);
+  hideLoader();
+}
+function boot(){
+  const list=getList();
+  if(!list.length){
+    document.getElementById("app").classList.add("hide");
+    document.getElementById("welcome").classList.remove("hide");
+    document.getElementById("subline").textContent="No packages yet";
+    return;
+  }
+  document.getElementById("welcome").classList.add("hide");
+  document.getElementById("app").classList.remove("hide");
+  loadAll(false);
+}
+
+const ASC_FIRST=["name","type","latest","published"]; // text columns sort ascending on first click
+document.querySelectorAll("#tbl th").forEach(th=>th.addEventListener("click",()=>{
+  const k=th.dataset.k;
+  if(sortKey===k) sortDir*=-1;
+  else { sortKey=k; sortDir=ASC_FIRST.includes(k)?1:-1; }
+  renderTable();
+}));
+document.getElementById("welcome-input").addEventListener("input",updateWelcomeCount);
+boot();
+</script>
+</body>
+</html>
