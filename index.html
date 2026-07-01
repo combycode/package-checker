@@ -211,17 +211,12 @@
             <th data-k="dependents">deps</th>
             <th data-k="stars">★</th>
             <th data-k="prs">PRs</th>
-            <th data-k="signal">Use signal</th>
             <th data-k="state">Status</th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="note">
-        <b>Use signal</b>: <span class="sig-real">looks real</span> (weekday rhythm, steady floor) ·
-        <span class="sig-mixed">mixed</span> ·
-        <span class="sig-auto">bots</span> (flat/weekend-equal or a single post-publish spike — typical of mirrors &amp; scanners) ·
-        <span class="sig-none">none</span>. Heuristic, not proof — <b>Dependents</b> is the stronger signal.
         <b>Total</b> covers each registry's available window (npm ~365d · PyPI ~180d · crates ~90d).
         <b>Status</b>: <span class="dot active"></span>active (updated &lt;3m) · <span class="dot warm"></span>warm (&lt;1y) · <span class="dot dormant"></span>cold (&gt;1y).
       </div>
@@ -436,7 +431,6 @@ async function fetchDownloads(p){
     p.d7=series.slice(-7).reduce((a,b)=>a+b,0);
     let mi=0; series.forEach((v,i)=>{if(v>series[mi])mi=i;});
     p.peak=series.length?series[mi]:0; p.peakDay=series.length?dates[mi]:null;
-    p.signal=useSignal(p);
   }catch(e){ p.dlerr=e.message||"error"; p.series=[]; p.dates=[]; }
 }
 
@@ -459,22 +453,7 @@ async function fetchGithubRepo(repo){
 }
 
 /* ---------- heuristics ---------- */
-function useSignal(p){
-  const v=p.series||[]; if(!v.length) return {k:"none",t:"none"};
-  if(p.d30===0) return {k:"none",t:"none"};
-  const tot=p.dTotal||1;
-  let wd=0,we=0,wdn=0,wen=0;
-  v.forEach((val,i)=>{ const day=new Date(p.dates[i]).getUTCDay(); if(day===0||day===6){we+=val;wen++;} else {wd+=val;wdn++;} });
-  const wdAvg=wdn?wd/wdn:0, weAvg=wen?we/wen:0;
-  const weekendRatio=wdAvg?weAvg/wdAvg:1;
-  const spikeShare=p.peak/tot;
-  const nonzeroDays=v.filter(x=>x>0).length/v.length;
-  if(spikeShare>0.25 && tot<3000) return {k:"auto",t:"bots"};
-  if(nonzeroDays<0.3) return {k:"auto",t:"bots"};
-  if(weekendRatio<0.8 && nonzeroDays>0.6) return {k:"real",t:"looks real"};
-  if(weekendRatio>0.92) return {k:"auto",t:"bots"};
-  return {k:"mixed",t:"mixed"};
-}
+/* use-signal heuristic removed for now — a proper package score will be designed later. */
 function statusOf(p){
   if(!p.published||p.published==="–") return {c:"dormant",t:"?"};
   const age=(Date.now()-new Date(p.published))/86400000;
@@ -482,7 +461,7 @@ function statusOf(p){
   if(age<=365) return {c:"warm",t:"warm"};
   return {c:"dormant",t:"cold"};
 }
-function isReal(p){ return (p.signal&&p.signal.k==="real")||(p.directDeps>0); }
+function isReal(p){ return p.directDeps>0; }
 function isPopular(p){ const s=getSettings(); return (p.dependents>s.popDeps)||(p.stars>s.popStars)||(((p.d30||0)/30)>s.popDl); }
 
 /* ---------- filters ---------- */
@@ -532,7 +511,7 @@ function renderTable(arr){
     return (b.d30||0)-(a.d30||0);
   });
   tb.innerHTML=rows.map(p=>{
-    const st=statusOf(p), sg=p.signal||{k:"none",t:"–"};
+    const st=statusOf(p);
     const avg=p.rangeDays?p.dTotal/p.rangeDays:0;
     const isBurst=p.peak&&(p.peak>Math.max(50,avg*8));
     return `<tr>
@@ -547,7 +526,6 @@ function renderTable(arr){
       <td>${p.dependents==null?(p.deperr?errCell(p.deperr):'…'):`<b style="color:${p.dependents>0?'var(--green)':'var(--dim)'}">${fmt(p.dependents)}</b>${(p.directDeps!=null&&p.directDeps!==p.dependents)?` <span class="status">(${fmt(p.directDeps)} direct)</span>`:''}`}</td>
       <td>${p.repoFull?(p.stars==null?(p.gherr?errCell(p.gherr):'…'):fmt(p.stars)):'–'}</td>
       <td>${p.repoFull?(p.prs==null?'…':p.prs):'–'}</td>
-      <td><span class="sig-${sg.k}">${sg.t}</span></td>
       <td><span class="dot ${st.c}"></span>${st.t}</td>
     </tr>`;
   }).join("");
@@ -616,7 +594,7 @@ function exportJson(){
   PKGS.forEach(p=>{ out[p.id]={
     registry:p.registry, name:p.name, type:p.type||null, latest:p.latest||null, published:p.published||null,
     downloads7d:p.d7??null, downloads30d:p.d30??null, downloadsTotal:p.dTotal??null, rangeDays:p.rangeDays??null,
-    peak:p.peak??null, peakDay:p.peakDay||null, useSignal:p.signal?p.signal.t:null,
+    peak:p.peak??null, peakDay:p.peakDay||null,
     dependents:p.dependents??null, directDependents:p.directDeps??null, stars:p.stars??null, openPRs:p.prs??null,
     status:statusOf(p).t, repo:p.repoFull||null, url:pkgUrl(p)
   }; });
@@ -659,7 +637,7 @@ async function loadAll(force=false){
   for(let i=0;i<n;i++){ const p=toFetch[i];
     setProgress(25+i/n*25,"Downloads "+(i+1)+"/"+n+" — "+p.name);
     await fetchDownloads(p);
-    log(p.dlerr?"⚠ "+p.name+" — downloads "+errLabel(p.dlerr):"• "+p.name+": "+fmt(p.d30)+"/30d · "+fmt(p.dTotal)+"/"+p.rangeDays+"d"+(p.signal?" · "+p.signal.t:""), p.dlerr?"warn":"dim");
+    log(p.dlerr?"⚠ "+p.name+" — downloads "+errLabel(p.dlerr):"• "+p.name+": "+fmt(p.d30)+"/30d · "+fmt(p.dTotal)+"/"+p.rangeDays+"d", p.dlerr?"warn":"dim");
   }
 
   log("Fetching dependents (deps.dev)…","acc");
