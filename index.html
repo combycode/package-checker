@@ -3,17 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NpmChecker — track your npm packages</title>
+<title>PackageChecker — track your npm / PyPI / crates packages</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>📦</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#1a1a2e;--bg2:#20203a;--card:#23233f;--text:#e0e0e0;--muted:#9a9ab0;
     --accent:#00d4ff;--line:#33334d;--green:#3ddc97;--amber:#ffcc66;--dim:#6a6a85;--red:#ff6b6b;
+    --npm:#cb3837;--pypi:#4b8bbe;--crates:#dea584;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;padding:24px 16px}
-  .wrap{max-width:1200px;margin:0 auto}
+  .wrap{max-width:1240px;margin:0 auto}
   .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   h1{font-size:1.6rem;font-weight:700;letter-spacing:-.5px}
   h1 span{color:var(--accent)}
@@ -28,7 +29,16 @@
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
   .kpi .n{font-size:1.4rem;font-weight:700;color:var(--accent)}
   .kpi .l{font-size:.76rem;color:var(--muted);margin-top:2px}
-  section{margin-top:26px}
+  /* filter bar */
+  .filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0 4px}
+  .filters .fl{font-size:.78rem;color:var(--muted);margin-right:2px}
+  .chip{background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:5px 12px;font-size:.8rem;color:var(--muted);cursor:pointer}
+  .chip:hover{border-color:var(--accent);color:var(--text)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#0a0a18;font-weight:600}
+  .filters .sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+  .search{background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:6px 12px;color:var(--text);font-size:.8rem;min-width:160px}
+  .search:focus{outline:none;border-color:var(--accent)}
+  section{margin-top:22px}
   h2{font-size:1.05rem;color:var(--accent);margin-bottom:12px}
   .chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;height:320px}
   .tablewrap{overflow-x:auto;border-radius:12px}
@@ -44,13 +54,18 @@
   .t-primary{color:var(--accent);border-color:var(--accent)}
   .t-internal{color:var(--dim);border-color:var(--dim)}
   .t-legacy{color:var(--amber);border-color:var(--amber)}
+  .favi{display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:7px;border-radius:3px;background-size:contain;background-repeat:no-repeat;background-position:center}
+  .favi-npm{background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='2' fill='%23cb3837'/><path d='M4 4h8v8h-2V6H8v6H4z' fill='%23fff'/></svg>")}
+  .favi-pypi{background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='2' fill='%23fff'/><path d='M8 2 L2 8 L8 8 Z' fill='%233776ab'/><path d='M8 14 L14 8 L8 8 Z' fill='%23ffd43b'/><circle cx='5' cy='5' r='.9' fill='%233776ab'/><circle cx='11' cy='11' r='.9' fill='%23d8a800'/></svg>")}
+  .favi-crates{background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1 L14 4.5 L14 11.5 L8 15 L2 11.5 L2 4.5 Z' fill='%23dea584'/><path d='M8 1 L14 4.5 L8 8 L2 4.5 Z' fill='%23ecceb0'/><path d='M8 8 L14 4.5 L14 11.5 L8 15 Z' fill='%23c1925f'/></svg>")}
   .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
   .active{background:var(--green)}.warm{background:var(--amber)}.dormant{background:var(--dim)}
-  .sig-real{color:var(--green)}.sig-auto{color:var(--red)}.sig-mixed{color:var(--amber)}.sig-none{color:var(--dim)}
+  .sig-real{color:var(--green)}.sig-auto{color:var(--muted)}.sig-mixed{color:var(--amber)}.sig-none{color:var(--dim)}
   .burst{color:var(--red);font-weight:600}
   .err{color:var(--red);font-size:.75rem}
   .ghi{display:inline-flex;vertical-align:middle;margin-right:7px;color:var(--muted)}
   .ghi:hover{color:var(--accent)}
+  .ghi-off,.ghi-off:hover{color:var(--dim);cursor:default}
   .ghi svg{width:14px;height:14px;fill:currentColor;display:block}
   .note{background:var(--bg2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:6px;color:var(--muted);font-size:.82rem;margin-top:14px}
   footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.78rem;text-align:center}
@@ -58,9 +73,12 @@
   .overlay{position:fixed;inset:0;background:rgba(10,10,24,.82);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
   .modal{background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:640px;width:100%;padding:26px 28px;max-height:90vh;overflow:auto}
   .modal h2{font-size:1.3rem}
+  .modal h3{font-size:.95rem;color:var(--accent);margin:18px 0 6px}
   .modal p{color:var(--muted);font-size:.9rem;margin:8px 0}
   textarea{width:100%;min-height:150px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;resize:vertical;margin-top:8px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  .thr{display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)}
+  .thr input{width:78px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:.82rem}
   .hide{display:none}
   .muted{color:var(--muted)}
   label.file{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
@@ -82,15 +100,15 @@
   <!-- ===== Welcome / first-run overlay ===== -->
   <div id="welcome" class="overlay hide">
     <div class="modal">
-      <h2>📦 Npm<span style="color:var(--accent)">Checker</span></h2>
-      <p>A tiny dashboard for the npm packages <b>you</b> care about. It pulls download history, release info, GitHub stars/PRs, and flags whether traffic looks like <b>real use vs. bots/mirrors</b> — all live in your browser. Nothing is sent anywhere; your list is stored locally on this device.</p>
+      <h2>📦 Package<span style="color:var(--accent)">Checker</span></h2>
+      <p>A tiny dashboard for the packages <b>you</b> care about across <b>npm, PyPI and crates.io</b>. It pulls download history, releases, dependents and GitHub stars/PRs, and flags whether traffic looks like <b>real use vs. bots/mirrors</b> — all live in your browser. Nothing is sent anywhere; your list is stored locally on this device.</p>
       <ul class="how">
-        <li>Paste package names below (one per line, or comma/space separated).</li>
-        <li>Scoped names work: <code>@scope/name</code>. Versions are ignored (<code>lodash@4.17.21</code> → <code>lodash</code>).</li>
-        <li>Or upload a <code>.txt</code> file with one name per line.</li>
-        <li>Change the list anytime via the ⚙ Settings button.</li>
+        <li>One per line (or comma/space separated). Prefix the ecosystem: <code>pypi:requests</code>, <code>crates:serde</code>. A bare name = npm.</li>
+        <li>Aliases: <code>py:</code>/<code>pip:</code> → PyPI, <code>cargo:</code>/<code>rs:</code> → crates.</li>
+        <li>Scoped npm works (<code>@scope/name</code>); versions are ignored.</li>
+        <li>Or upload a <code>.txt</code>. Change the list anytime via ⚙ Settings.</li>
       </ul>
-      <textarea id="welcome-input" placeholder="react&#10;lodash&#10;chalk&#10;@types/node"></textarea>
+      <textarea id="welcome-input" placeholder="react&#10;@types/node&#10;pypi:requests&#10;pypi:flask&#10;crates:serde&#10;crates:tokio"></textarea>
       <div class="row">
         <button class="primary" onclick="startFromWelcome()">Start tracking →</button>
         <label class="file"><input type="file" id="welcome-file" accept=".txt,text/plain" class="hide" onchange="fileToTextarea(event,'welcome-input')"><button onclick="this.previousElementSibling.click()">⬆ Upload .txt</button></label>
@@ -102,16 +120,24 @@
   <!-- ===== Settings overlay ===== -->
   <div id="settings" class="overlay hide">
     <div class="modal">
-      <h2>⚙ Settings — tracked packages</h2>
-      <p>Edit the full list (this replaces what's tracked), or use the buttons below.</p>
+      <h2>⚙ Settings</h2>
+      <h3>Tracked packages</h3>
+      <p>Edit the full list (this replaces what's tracked). Prefix ecosystems: <code>pypi:</code> / <code>crates:</code> (bare = npm).</p>
       <textarea id="settings-input" placeholder="one package per line"></textarea>
       <div class="row">
-        <button class="primary" onclick="saveSettings()">💾 Save list</button>
+        <button class="primary" onclick="saveSettings()">💾 Save</button>
         <label class="file"><input type="file" id="settings-file" accept=".txt,text/plain" class="hide" onchange="appendFile(event)"><button onclick="this.previousElementSibling.click()">⬆ Upload &amp; append</button></label>
         <button onclick="clearAll()">🗑 Clear all</button>
         <button onclick="closeSettings()">Cancel</button>
       </div>
-      <p class="muted" style="margin-top:14px;font-size:.8rem">Tip: paste to <b>replace</b>, upload to <b>append</b>. List is saved in this browser's local storage only.</p>
+      <h3>Popular thresholds</h3>
+      <p>A package counts as <b>Popular</b> if it meets <b>any</b> of these:</p>
+      <div class="row">
+        <span class="thr">dependents &gt; <input type="number" id="th-deps" min="0"></span>
+        <span class="thr">stars &gt; <input type="number" id="th-stars" min="0"></span>
+        <span class="thr">downloads/day &gt; <input type="number" id="th-dl" min="0"></span>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:.8rem">Saved in this browser's local storage only. (downloads/day = last-30-day total ÷ 30)</p>
     </div>
   </div>
 
@@ -133,10 +159,11 @@
   <!-- ===== Header ===== -->
   <div class="top">
     <div>
-      <h1>📦 Npm<span>Checker</span></h1>
+      <h1>📦 Package<span>Checker</span></h1>
       <div class="sub" id="subline">—</div>
     </div>
     <div class="grow"></div>
+    <button onclick="exportJson()"><span class="icon">⬇</span> Export</button>
     <button onclick="loadAll(true)"><span class="icon">↻</span> Reload</button>
     <button onclick="openSettings()"><span class="icon">⚙</span> Settings</button>
   </div>
@@ -144,8 +171,24 @@
   <div id="app" class="hide">
     <div class="cards" id="kpis"></div>
 
+    <div class="filters" id="filterbar">
+      <span class="fl">Registry:</span>
+      <button class="chip" data-reg="all">All</button>
+      <button class="chip" data-reg="npm">npm</button>
+      <button class="chip" data-reg="pypi">PyPI</button>
+      <button class="chip" data-reg="crates">crates</button>
+      <span class="sep"></span>
+      <button class="chip" data-f="primaryOnly">Primary only</button>
+      <button class="chip" data-f="realOnly">Real usage</button>
+      <button class="chip" data-f="popularOnly">Popular</button>
+      <input id="search" class="search" placeholder="🔍 filter by name…">
+      <span class="grow"></span>
+      <span class="status" id="showing"></span>
+      <button class="chip" id="clearf">Clear</button>
+    </div>
+
     <section>
-      <h2>Aggregate daily downloads — last 12 months (bursts in red)</h2>
+      <h2>Aggregate daily downloads</h2>
       <div class="chartbox"><canvas id="chart"></canvas></div>
       <div class="note" id="burstnote">—</div>
     </section>
@@ -161,94 +204,115 @@
             <th data-k="published">Published</th>
             <th data-k="d7">7d</th>
             <th data-k="d30">30d</th>
-            <th data-k="d365">365d</th>
+            <th data-k="dTotal" title="Downloads over each registry's available window — npm ~365d · PyPI ~180d · crates ~90d">Total</th>
             <th data-k="peak">Peak day</th>
-            <th data-k="signal">Use signal</th>
-            <th data-k="dependents">Dependents</th>
+            <th data-k="dependents">deps</th>
             <th data-k="stars">★</th>
             <th data-k="prs">PRs</th>
+            <th data-k="signal">Use signal</th>
             <th data-k="state">Status</th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <div class="note">
-        <b>Use signal</b> estimates real adoption vs automation from the download shape:
-        <span class="sig-real">looks real</span> (weekday rhythm, steady floor) ·
+        <b>Use signal</b>: <span class="sig-real">looks real</span> (weekday rhythm, steady floor) ·
         <span class="sig-mixed">mixed</span> ·
-        <span class="sig-auto">mostly automated</span> (flat/weekend-equal or a single post-publish spike — typical of mirrors &amp; scanners) ·
-        <span class="sig-none">none</span> (no downloads). It's a heuristic, not proof.
-        <b>Status</b>: <span class="dot active"></span>active (≥30/30d) · <span class="dot warm"></span>warm (1–29) · <span class="dot dormant"></span>dormant.
+        <span class="sig-auto">bots</span> (flat/weekend-equal or a single post-publish spike — typical of mirrors &amp; scanners) ·
+        <span class="sig-none">none</span>. Heuristic, not proof — <b>Dependents</b> is the stronger signal.
+        <b>Total</b> covers each registry's available window (npm ~365d · PyPI ~180d · crates ~90d).
+        <b>Status</b>: <span class="dot active"></span>active (updated &lt;3m) · <span class="dot warm"></span>warm (&lt;1y) · <span class="dot dormant"></span>cold (&gt;1y).
       </div>
     </section>
   </div>
 
-  <footer>NpmChecker · static, client-side only · data from registry.npmjs.org, api.npmjs.org, api.deps.dev &amp; api.github.com · results cached per day · GitHub API is unauthenticated (60 req/h per IP).</footer>
+  <footer>PackageChecker · static, client-side only · data from npm, PyPI (pypistats), crates.io, deps.dev &amp; GitHub · results cached per day · GitHub API unauthenticated (60 req/h per IP).</footer>
 </div>
 
 <script>
-const LS_KEY="npmchecker:packages";
+const LS_KEY="packagechecker:packages", OLD_LS_KEY="npmchecker:packages";
+const CACHE_KEY="packagechecker:cache";
+const SETTINGS_KEY="packagechecker:settings";
+const FILTERS_KEY="packagechecker:filters";
 const fmt=n=>n==null?"–":n.toLocaleString("en-US");
 const errLabel=c=>c==='rate'?'rate-limited':c==='network'?'network error':('HTTP '+c);
-const npmUrl=n=>"https://www.npmjs.com/package/"+n;
+const errCell=c=>`<span class="err" title="${errLabel(c)}">Err</span>`;
+const REG_LABEL={npm:"npm",pypi:"PyPI",crates:"crates"};
+const REG_ALIAS={npm:"npm",npmjs:"npm",pypi:"pypi",pip:"pypi",py:"pypi",python:"pypi",crates:"crates",cargo:"crates",rs:"crates",rust:"crates"};
+function pkgUrl(p){ return p.registry==="pypi"?"https://pypi.org/project/"+p.name+"/":p.registry==="crates"?"https://crates.io/crates/"+p.name:"https://www.npmjs.com/package/"+p.name; }
 const GH_SVG='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
-const ghIcon=repo=>repo?`<a class="ghi" href="https://github.com/${repo}" target="_blank" title="Open ${repo} on GitHub">${GH_SVG}</a>`:'';
+const ghIcon=repo=>repo?`<a class="ghi" href="https://github.com/${repo}" target="_blank" title="Open ${repo} on GitHub">${GH_SVG}</a>`:`<span class="ghi ghi-off" title="No repository known">${GH_SVG}</span>`;
+const favi=r=>`<span class="favi favi-${r}" title="${REG_LABEL[r]}"></span>`;
 let PKGS=[], chart, sortKey="type", sortDir=1;
 
+/* ---------- settings (popular thresholds) ---------- */
+const DEF_SET={popDeps:10,popStars:1000,popDl:1000};
+function getSettings(){ try{return Object.assign({},DEF_SET,JSON.parse(localStorage.getItem(SETTINGS_KEY))||{})}catch(e){return {...DEF_SET}} }
+function setSettings(s){ localStorage.setItem(SETTINGS_KEY,JSON.stringify(s)); }
+
 /* ---------- list parsing / storage ---------- */
+function stripVersion(name,reg){
+  name=name.trim();
+  if(reg==="npm"){ const at=name.lastIndexOf("@"); if(at>0) name=name.slice(0,at); return name; }
+  if(reg==="pypi"){ return name.split(/[=<>!~ \[]/)[0]; }
+  if(reg==="crates"){ return name.split("@")[0]; }
+  return name;
+}
 function parseList(text){
   const raw=text.split(/[\s,;]+/).map(s=>s.trim()).filter(Boolean);
-  const out=[];
+  const out=[], seen=new Set();
   for(let s of raw){
     s=s.replace(/^["'`]|["'`]$/g,"");
-    const at=s.lastIndexOf("@");          // strip version, keep leading scope @
-    if(at>0) s=s.slice(0,at);
-    if(!s) continue;
-    if(!out.includes(s)) out.push(s);
+    let reg="npm", name=s;
+    const ci=s.indexOf(":");
+    if(ci>0){ const pre=s.slice(0,ci).toLowerCase(); if(REG_ALIAS[pre]) reg=REG_ALIAS[pre]; name=s.slice(ci+1); } // strip any prefix; unknown → npm
+    name=stripVersion(name,reg);
+    if(!name) continue;
+    const id=reg+":"+name;
+    if(!seen.has(id)){ seen.add(id); out.push(id); }
   }
   return out;
 }
-function getList(){ try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch(e){return []} }
+function parseId(id){ const ci=id.indexOf(":"); return {registry:id.slice(0,ci), name:id.slice(ci+1), id}; }
+function getList(){
+  try{ const v=JSON.parse(localStorage.getItem(LS_KEY)); if(Array.isArray(v)) return v; }catch(e){}
+  // migrate old npm-only list (bare names)
+  try{ const old=JSON.parse(localStorage.getItem(OLD_LS_KEY)); if(Array.isArray(old)&&old.length){
+    const mig=old.map(n=>n.includes(":")?n:"npm:"+n); setList(mig); return mig; } }catch(e){}
+  return [];
+}
 function setList(arr){ localStorage.setItem(LS_KEY,JSON.stringify(arr)); }
 
 /* ---------- daily result cache ---------- */
-const CACHE_KEY="npmchecker:cache";
-const todayStr=()=>new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD (local)
+const todayStr=()=>new Date().toLocaleDateString("en-CA");
 function sameList(a,b){ if(!a||!b||a.length!==b.length) return false; const s=new Set(a); return b.every(x=>s.has(x)); }
-function loadCache(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY))}catch(e){return null} }
+// Remote shared list (?list=<url>) — kept separate from the user's own list & cache.
+let REMOTE=null, REMOTE_LIST=null;
+function activeList(){ return REMOTE?(REMOTE_LIST||[]):getList(); }
+function cacheKey(){ return CACHE_KEY+(REMOTE?":"+encodeURIComponent(REMOTE):""); }
+async function fetchText(url){ const r=await fetch(url); if(!r.ok) throw new Error(r.status); return r.text(); }
+function loadCache(){ try{return JSON.parse(localStorage.getItem(cacheKey()))}catch(e){return null} }
 function saveCache(){
-  try{ localStorage.setItem(CACHE_KEY,JSON.stringify({date:todayStr(),list:getList(),pkgs:PKGS,savedAt:Date.now()})); }
-  catch(e){ log("⚠ cache not saved ("+(e.name||"error")+") — result too large or storage full","warn"); }
+  try{ localStorage.setItem(cacheKey(),JSON.stringify({date:todayStr(),list:activeList(),pkgs:PKGS,savedAt:Date.now()})); }
+  catch(e){ log("⚠ cache not saved ("+(e.name||"error")+")","warn"); }
 }
 
 /* ---------- loader / activity log ---------- */
 let loading=false;
-function showLoader(title){
-  loading=true;
-  document.getElementById("log").innerHTML="";
-  document.getElementById("loader-title").textContent=title||"Collecting data…";
-  setProgress(0,"starting…");
-  document.getElementById("loader").classList.remove("hide");
-}
+function showLoader(title){ loading=true; document.getElementById("log").innerHTML=""; document.getElementById("loader-title").textContent=title||"Collecting data…"; setProgress(0,"starting…"); document.getElementById("loader").classList.remove("hide"); }
 function hideLoader(){ loading=false; document.getElementById("loader").classList.add("hide"); }
-function setProgress(pct,sub){
-  document.getElementById("loader-bar").style.width=Math.max(0,Math.min(100,pct))+"%";
-  if(sub!=null) document.getElementById("loader-sub").textContent=sub;
-}
-function log(msg,cls){
-  const box=document.getElementById("log");
-  if(!box) return;
-  const t=new Date().toLocaleTimeString();
-  box.insertAdjacentHTML("beforeend",`<div class="l-${cls||'dim'}">[${t}] ${msg}</div>`);
-  box.scrollTop=box.scrollHeight;
-}
+function setProgress(pct,sub){ document.getElementById("loader-bar").style.width=Math.max(0,Math.min(100,pct))+"%"; if(sub!=null) document.getElementById("loader-sub").textContent=sub; }
+function log(msg,cls){ const box=document.getElementById("log"); if(!box) return; const t=new Date().toLocaleTimeString(); box.insertAdjacentHTML("beforeend",`<div class="l-${cls||'dim'}">[${t}] ${msg}</div>`); box.scrollTop=box.scrollHeight; }
 
 /* ---------- networking: per-domain queue + retry/backoff ---------- */
 const DOMAIN_CFG={
   "registry.npmjs.org":{gap:180,retries:3},
   "api.npmjs.org":{gap:220,retries:3},
+  "pypi.org":{gap:200,retries:3},
+  "pypistats.org":{gap:350,retries:3},
+  "crates.io":{gap:1000,retries:3},
   "api.deps.dev":{gap:300,retries:3},
-  "api.github.com":{gap:1300,retries:2},
+  "api.github.com":{gap:1300,retries:3},
   default:{gap:300,retries:3}
 };
 const _chains={}, _lastTs={}, _cooldown={};
@@ -258,8 +322,6 @@ const cfgOf=h=>DOMAIN_CFG[h]||DOMAIN_CFG.default;
 function backoff(a){ return Math.min(8000,500*Math.pow(2,a))+Math.random()*250; }
 function retryAfterMs(r,a){ const ra=r.headers.get("retry-after"); if(ra){const s=parseInt(ra,10); if(!isNaN(s)) return Math.min(20000,s*1000);} return backoff(a); }
 function isRateLimited(r){ return r.status===429 || (r.status===403 && r.headers.get("x-ratelimit-remaining")==="0"); }
-
-// serialize requests per host so we never hammer one domain
 function jget(url,opts={}){
   const host=hostOf(url);
   const prev=_chains[host]||Promise.resolve();
@@ -276,173 +338,188 @@ async function _doFetch(url,host,opts){
   while(attempt<=retries){
     _lastTs[host]=Date.now();
     let r;
-    try{ r=await fetch(url); }
-    catch(netErr){                               // network/CORS failure → retry
+    try{ r=await fetch(url,{headers:{accept:"application/json"}}); }
+    catch(netErr){
       lastErr=netErr;
       if(attempt>=retries) throw new Error("network");
       log("↻ retry "+(attempt+1)+"/"+retries+" "+host+" (network)","warn");
       await sleep(backoff(attempt)); attempt++; continue;
     }
-    if(isRateLimited(r)){                          // stop hammering this host for the run
+    if(isRateLimited(r)){
+      if(attempt<retries){
+        const wait=retryAfterMs(r,attempt);
+        log("↻ retry "+(attempt+1)+"/"+retries+" "+host+" (rate-limited, "+Math.round(wait/1000)+"s)","warn");
+        await sleep(wait); attempt++; continue;
+      }
       const reset=parseInt(r.headers.get("x-ratelimit-reset")||"0",10);
       _cooldown[host]=reset?reset*1000:Date.now()+5*60000;
       const e=new Error("rate"); e.rate=true; throw e;
     }
-    if(r.status>=500){                            // server error → retry
+    if(r.status>=500){
       if(attempt>=retries){ const e=new Error(String(r.status)); e.status=r.status; throw e; }
       log("↻ retry "+(attempt+1)+"/"+retries+" "+host+" (HTTP "+r.status+")","warn");
       await sleep(retryAfterMs(r,attempt)); attempt++; continue;
     }
-    if(!r.ok){ const e=new Error(String(r.status)); e.status=r.status; throw e; } // 404 etc → no retry
+    if(!r.ok){ const e=new Error(String(r.status)); e.status=r.status; throw e; }
     return r.json();
   }
   throw lastErr||new Error("failed");
 }
 
-/* ---------- data fetch (all client-side) ---------- */
-async function fetchMeta(p){
-  const enc=p.name.replace("/","%2F");
-  try{
-    const d=await jget("https://registry.npmjs.org/"+enc);
-    const latest=(d["dist-tags"]||{}).latest;
-    const lv=(d.versions||{})[latest]||{};
-    let repo=lv.repository||d.repository; if(repo&&typeof repo==="object") repo=repo.url;
-    p.repoFull=parseRepo(repo);
-    p.latest=latest||"–";
-    const t=d.time||{}; p.published=(t[latest]||"").slice(0,10)||"–";
-    p.desc=(lv.description||d.description||"");
-    p.type=classifyType(p);
-  }catch(e){ p.metaerr=e.message; p.type="?"; p.latest="–"; p.published="–"; }
+/* ---------- metadata ---------- */
+function parseRepo(url){ if(!url) return null; const m=String(url).match(/github\.com[/:]([^/]+)\/([^/.#]+)/i); return m?`${m[1]}/${m[2]}`:null; }
+function pypiNorm(n){ return n.toLowerCase().replace(/[._]+/g,'-'); }
+async function metaNpm(p){
+  const d=await jget("https://registry.npmjs.org/"+p.name.replace("/","%2F"));
+  const latest=(d["dist-tags"]||{}).latest; const lv=(d.versions||{})[latest]||{};
+  let repo=lv.repository||d.repository; if(repo&&typeof repo==="object") repo=repo.url;
+  p.repoFull=parseRepo(repo); p.latest=latest||"–";
+  const t=d.time||{}; p.published=(t[latest]||"").slice(0,10)||"–"; p.desc=(lv.description||d.description||"");
 }
-function parseRepo(url){
-  if(!url) return null;
-  const m=url.match(/github\.com[/:]([^/]+)\/([^/.#]+)/i);
-  return m?`${m[1]}/${m[2]}`:null;
+async function metaPypi(p){
+  const d=await jget("https://pypi.org/pypi/"+encodeURIComponent(p.name)+"/json");
+  const info=d.info||{}; p.latest=info.version||"–"; p.desc=info.summary||"";
+  let repo=null; const urls=info.project_urls||{};
+  for(const k in urls){ if(/github\.com/i.test(urls[k])){ repo=urls[k]; break; } }
+  if(!repo && /github\.com/i.test(info.home_page||"")) repo=info.home_page;
+  p.repoFull=parseRepo(repo);
+  const rel=(d.releases||{})[p.latest]||[]; p.published=((rel[0]&&rel[0].upload_time_iso_8601)||"").slice(0,10)||"–";
+}
+async function metaCrates(p){
+  const d=await jget("https://crates.io/api/v1/crates/"+encodeURIComponent(p.name));
+  const c=d.crate||{}; p.latest=c.newest_version||c.max_version||"–"; p.desc=c.description||"";
+  p.repoFull=parseRepo(c.repository||c.homepage||"");
+  const vers=d.versions||[]; let pub=c.updated_at||""; if(vers.length){ const lv=vers.find(v=>v.num===p.latest)||vers[0]; pub=lv.created_at||pub; }
+  p.published=(pub||"").slice(0,10)||"–";
+}
+async function fetchMeta(p){
+  try{
+    if(p.registry==="npm") await metaNpm(p);
+    else if(p.registry==="pypi") await metaPypi(p);
+    else await metaCrates(p);
+    p.type=classifyType(p);
+  }catch(e){ p.metaerr=e.message||"error"; p.type="?"; p.latest=p.latest||"–"; p.published=p.published||"–"; }
 }
 function classifyType(p){
-  const d=(p.desc||"").toLowerCase();
-  if(/internal\s*--\s*install|build of `|-(linux|darwin|win32)-/.test(d)||/-(linux|darwin|win32)-(x64|arm64)$/.test(p.name)) return "internal";
-  if(p.published&&p.published!=="–"){
-    const age=(Date.now()-new Date(p.published))/86400000;
-    if(age>365) return "legacy";
-  }
+  if(p.registry==="npm"){ const d=(p.desc||"").toLowerCase();
+    if(/internal\s*--\s*install|build of `|-(linux|darwin|win32)-/.test(d)||/-(linux|darwin|win32)-(x64|arm64)$/.test(p.name)) return "internal"; }
+  if(p.published&&p.published!=="–"){ const age=(Date.now()-new Date(p.published))/86400000; if(age>365) return "legacy"; }
   return "primary";
 }
-async function fetchDownloads(p){
-  const enc=p.name.replace("/","%2F");
-  try{
-    const d=await jget("https://api.npmjs.org/downloads/range/last-year/"+enc);
-    const days=d.downloads||[];
-    p.series=days.map(x=>x.downloads); p.dates=days.map(x=>x.day);
-    p.d365=p.series.reduce((a,b)=>a+b,0);
-    p.d30=p.series.slice(-30).reduce((a,b)=>a+b,0);
-    p.d7=p.series.slice(-7).reduce((a,b)=>a+b,0);
-    let mi=0; p.series.forEach((v,i)=>{if(v>p.series[mi])mi=i;});
-    p.peak=p.series.length?p.series[mi]:0; p.peakDay=p.series.length?p.dates[mi]:null;
-    p.signal=useSignal(p);
-  }catch(e){ p.dlerr=e.message; p.series=[]; p.dates=[]; }
+
+/* ---------- downloads ---------- */
+async function dlNpm(p){ const d=await jget("https://api.npmjs.org/downloads/range/last-year/"+p.name.replace("/","%2F")); const days=d.downloads||[]; return [days.map(x=>x.day),days.map(x=>x.downloads)]; }
+// pypistats.org has no CORS header, so we route it through a free CORS proxy (corsfix).
+async function dlPypi(p){
+  const target="https://pypistats.org/api/packages/"+pypiNorm(p.name)+"/overall?mirrors=false";
+  const d=await jget("https://proxy.corsfix.com/?"+target);
+  const map={}; (d.data||[]).filter(r=>r.category==="without_mirrors").forEach(r=>{ map[r.date]=(map[r.date]||0)+r.downloads; });
+  const dates=Object.keys(map).sort(); return [dates,dates.map(x=>map[x])];
 }
+async function dlCrates(p){
+  const d=await jget("https://crates.io/api/v1/crates/"+encodeURIComponent(p.name)+"/downloads");
+  const map={}; (d.version_downloads||[]).forEach(r=>{ map[r.date]=(map[r.date]||0)+r.downloads; });
+  ((d.meta&&d.meta.extra_downloads)||[]).forEach(r=>{ map[r.date]=(map[r.date]||0)+r.downloads; });
+  const dates=Object.keys(map).sort(); return [dates,dates.map(x=>map[x])];
+}
+async function fetchDownloads(p){
+  try{
+    let dates=[],series=[];
+    if(p.registry==="npm") [dates,series]=await dlNpm(p);
+    else if(p.registry==="pypi") [dates,series]=await dlPypi(p);
+    else [dates,series]=await dlCrates(p);
+    p.dates=dates; p.series=series;
+    p.dTotal=series.reduce((a,b)=>a+b,0); p.rangeDays=series.length;
+    p.d30=series.slice(-30).reduce((a,b)=>a+b,0);
+    p.d7=series.slice(-7).reduce((a,b)=>a+b,0);
+    let mi=0; series.forEach((v,i)=>{if(v>series[mi])mi=i;});
+    p.peak=series.length?series[mi]:0; p.peakDay=series.length?dates[mi]:null;
+    p.signal=useSignal(p);
+  }catch(e){ p.dlerr=e.message||"error"; p.series=[]; p.dates=[]; }
+}
+
+/* ---------- dependents (deps.dev) ---------- */
 async function fetchDependents(p){
   if(!p.latest||p.latest==="–") return;
-  const url="https://api.deps.dev/v3alpha/systems/npm/packages/"+encodeURIComponent(p.name)+"/versions/"+encodeURIComponent(p.latest)+":dependents";
-  try{
-    const d=await jget(url);
-    p.dependents = d.dependentCount ?? null;
-    p.directDeps = d.directDependentCount ?? null;
-  }catch(e){ p.deperr=e.message; }
+  const sys=p.registry==="crates"?"cargo":p.registry;
+  const nm=p.registry==="pypi"?pypiNorm(p.name):p.name;
+  const url="https://api.deps.dev/v3alpha/systems/"+sys+"/packages/"+encodeURIComponent(nm)+"/versions/"+encodeURIComponent(p.latest)+":dependents";
+  try{ const d=await jget(url); p.dependents=d.dependentCount??null; p.directDeps=d.directDependentCount??null; }
+  catch(e){ p.deperr=e.message; }
 }
-async function fetchGithub(p){
-  if(!p.repoFull) return;
-  try{ const r=await jget("https://api.github.com/repos/"+p.repoFull); p.stars=r.stargazers_count; }
-  catch(e){ p.gherr=e.message; }
-  try{ const pr=await jget("https://api.github.com/repos/"+p.repoFull+"/pulls?state=open&per_page=100");
-       p.prs=Array.isArray(pr)?pr.length:null; }catch(e){}
+
+/* ---------- github ---------- */
+async function fetchGithubRepo(repo){
+  const out={stars:null,prs:null,gherr:undefined};
+  try{ const r=await jget("https://api.github.com/repos/"+repo); out.stars=r.stargazers_count; }catch(e){ out.gherr=e.message; }
+  try{ const pr=await jget("https://api.github.com/repos/"+repo+"/pulls?state=open&per_page=100"); out.prs=Array.isArray(pr)?pr.length:null; }catch(e){}
+  return out;
 }
 
 /* ---------- heuristics ---------- */
 function useSignal(p){
   const v=p.series||[]; if(!v.length) return {k:"none",t:"none"};
   if(p.d30===0) return {k:"none",t:"none"};
-  const tot=p.d365||1;
+  const tot=p.dTotal||1;
   let wd=0,we=0,wdn=0,wen=0;
-  v.forEach((val,i)=>{ const day=new Date(p.dates[i]).getUTCDay();
-    if(day===0||day===6){we+=val;wen++;} else {wd+=val;wdn++;} });
+  v.forEach((val,i)=>{ const day=new Date(p.dates[i]).getUTCDay(); if(day===0||day===6){we+=val;wen++;} else {wd+=val;wdn++;} });
   const wdAvg=wdn?wd/wdn:0, weAvg=wen?we/wen:0;
   const weekendRatio=wdAvg?weAvg/wdAvg:1;
   const spikeShare=p.peak/tot;
   const nonzeroDays=v.filter(x=>x>0).length/v.length;
-  if(spikeShare>0.25 && tot<3000) return {k:"auto",t:"mostly automated"};
-  if(nonzeroDays<0.3) return {k:"auto",t:"mostly automated"};
+  if(spikeShare>0.25 && tot<3000) return {k:"auto",t:"bots"};
+  if(nonzeroDays<0.3) return {k:"auto",t:"bots"};
   if(weekendRatio<0.8 && nonzeroDays>0.6) return {k:"real",t:"looks real"};
-  if(weekendRatio>0.92) return {k:"auto",t:"mostly automated"};
+  if(weekendRatio>0.92) return {k:"auto",t:"bots"};
   return {k:"mixed",t:"mixed"};
 }
 function statusOf(p){
-  if(p.d30==null) return {c:"dormant",t:"?"};
-  if(p.d30>=30) return {c:"active",t:"active"};
-  if(p.d30>=1) return {c:"warm",t:"warm"};
-  return {c:"dormant",t:"dormant"};
+  if(!p.published||p.published==="–") return {c:"dormant",t:"?"};
+  const age=(Date.now()-new Date(p.published))/86400000;
+  if(age<=90) return {c:"active",t:"active"};
+  if(age<=365) return {c:"warm",t:"warm"};
+  return {c:"dormant",t:"cold"};
 }
+function isReal(p){ return (p.signal&&p.signal.k==="real")||(p.directDeps>0); }
+function isPopular(p){ const s=getSettings(); return (p.dependents>s.popDeps)||(p.stars>s.popStars)||(((p.d30||0)/30)>s.popDl); }
 
-/* ---------- welcome ---------- */
-function fileToTextarea(ev,id){
-  const f=ev.target.files[0]; if(!f) return;
-  const r=new FileReader(); r.onload=()=>{
-    const ta=document.getElementById(id);
-    ta.value=(ta.value?ta.value+"\n":"")+r.result;
-    if(id==="welcome-input") updateWelcomeCount();
-  }; r.readAsText(f);
+/* ---------- filters ---------- */
+function defFilters(){ return {npm:true,pypi:true,crates:true,primaryOnly:false,realOnly:false,popularOnly:false,search:""}; }
+function getFilters(){ try{return Object.assign(defFilters(),JSON.parse(localStorage.getItem(FILTERS_KEY))||{})}catch(e){return defFilters()} }
+function saveFilters(){ localStorage.setItem(FILTERS_KEY,JSON.stringify(FILTERS)); }
+let FILTERS=getFilters();
+function visible(){
+  return PKGS.filter(p=>{
+    if(!FILTERS[p.registry]) return false;
+    if(FILTERS.primaryOnly && p.type!=="primary") return false;
+    if(FILTERS.realOnly && !isReal(p)) return false;
+    if(FILTERS.popularOnly && !isPopular(p)) return false;
+    if(FILTERS.search){ const q=FILTERS.search.toLowerCase(); if(!(p.name.toLowerCase().includes(q)||p.registry.includes(q))) return false; }
+    return true;
+  });
 }
-function updateWelcomeCount(){
-  const n=parseList(document.getElementById("welcome-input").value).length;
-  document.getElementById("welcome-count").textContent=n?n+" package(s) detected":"";
-}
-function startFromWelcome(){
-  const list=parseList(document.getElementById("welcome-input").value);
-  if(!list.length){ alert("Paste at least one package name."); return; }
-  setList(list); document.getElementById("welcome").classList.add("hide");
-  boot();
-}
-
-/* ---------- settings ---------- */
-function openSettings(){
-  document.getElementById("settings-input").value=getList().join("\n");
-  document.getElementById("settings").classList.remove("hide");
-}
-function closeSettings(){ document.getElementById("settings").classList.add("hide"); }
-function saveSettings(){
-  const list=parseList(document.getElementById("settings-input").value);
-  if(!list.length){ if(!confirm("Empty list — clear everything and show the welcome screen?")) return; setList([]); closeSettings(); boot(); return; }
-  setList(list); closeSettings(); boot();
-}
-function appendFile(ev){
-  const f=ev.target.files[0]; if(!f) return;
-  const r=new FileReader(); r.onload=()=>{
-    const ta=document.getElementById("settings-input");
-    ta.value=(ta.value?ta.value+"\n":"")+r.result;
-  }; r.readAsText(f);
-}
-function clearAll(){
-  if(!confirm("Remove all tracked packages?")) return;
-  setList([]); try{localStorage.removeItem(CACHE_KEY);}catch(e){} closeSettings(); boot();
+function renderChips(){
+  const allOn=FILTERS.npm&&FILTERS.pypi&&FILTERS.crates;
+  const set=(sel,on)=>{ const el=document.querySelector("#filterbar "+sel); if(el) el.classList.toggle("on",!!on); };
+  set('[data-reg="all"]',allOn);
+  ["npm","pypi","crates"].forEach(r=>set(`[data-reg="${r}"]`,FILTERS[r]));
+  ["primaryOnly","realOnly","popularOnly"].forEach(f=>set(`[data-f="${f}"]`,FILTERS[f]));
 }
 
 /* ---------- render ---------- */
-function renderKpis(){
-  const t365=PKGS.reduce((a,p)=>a+(p.d365||0),0);
-  const t30=PKGS.reduce((a,p)=>a+(p.d30||0),0);
-  const active=PKGS.filter(p=>p.d30>=30).length;
-  const withDeps=PKGS.filter(p=>(p.dependents||0)>0).length;
-  const stars=PKGS.reduce((a,p)=>a+(p.stars||0),0);
-  const k=[["Packages",PKGS.length],["Downloads 365d",fmt(t365)],["Downloads 30d",fmt(t30)],
-           ["Active",active],["With dependents",withDeps],["Total ★",fmt(stars)]];
+function renderKpis(arr){
+  const t30=arr.reduce((a,p)=>a+(p.d30||0),0);
+  const active=arr.filter(p=>statusOf(p).c==="active").length;
+  const real=arr.filter(p=>isReal(p)).length;
+  const withDeps=arr.filter(p=>(p.dependents||0)>0).length;
+  const stars=arr.reduce((a,p)=>a+(p.stars||0),0);
+  const k=[["Packages",arr.length],["Downloads 30d",fmt(t30)],["Active",active],["Real usage",real],["With dependents",withDeps],["Total ★",fmt(stars)]];
   document.getElementById("kpis").innerHTML=k.map(([l,n])=>`<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
 }
-function renderTable(){
+function renderTable(arr){
   const tb=document.querySelector("#tbl tbody");
-  const ord={primary:0,internal:1,legacy:2,"?":3};
-  const sk={none:0,auto:1,mixed:2,real:3};
-  const arr=[...PKGS].sort((a,b)=>{
+  const ord={primary:0,internal:1,legacy:2,"?":3}, sk={none:0,auto:1,mixed:2,real:3};
+  const rows=[...arr].sort((a,b)=>{
     let x,y;
     if(sortKey==="type"){x=ord[a.type];y=ord[b.type];}
     else if(sortKey==="signal"){x=sk[(a.signal||{}).k];y=sk[(b.signal||{}).k];}
@@ -450,129 +527,181 @@ function renderTable(){
     else {x=a[sortKey];y=b[sortKey];}
     x=x??-1;y=y??-1;
     if(x!==y) return (x-y)*sortDir;
-    return (b.d365||0)-(a.d365||0); // tiebreaker: most downloaded first
+    return (b.d30||0)-(a.d30||0);
   });
-  tb.innerHTML=arr.map(p=>{
+  tb.innerHTML=rows.map(p=>{
     const st=statusOf(p), sg=p.signal||{k:"none",t:"–"};
-    const isBurst=p.peak&&p.d365&&(p.peak>Math.max(50,(p.d365/180)*6));
+    const avg=p.rangeDays?p.dTotal/p.rangeDays:0;
+    const isBurst=p.peak&&(p.peak>Math.max(50,avg*8));
     return `<tr>
-      <td>${ghIcon(p.repoFull)}<a href="${npmUrl(p.name)}" target="_blank">${p.name}</a>${p.metaerr?'<br><span class="err">not found</span>':''}</td>
+      <td>${ghIcon(p.repoFull)}<a href="${pkgUrl(p)}" target="_blank">${favi(p.registry)}${p.name}</a>${p.metaerr?' <span class="err">not found</span>':''}</td>
       <td><span class="tag t-${p.type}">${p.type}</span></td>
       <td>${p.latest||'–'}</td>
       <td>${p.published||'–'}</td>
-      <td>${p.dlerr?'<span class="err">'+errLabel(p.dlerr)+'</span>':fmt(p.d7)}</td>
+      <td>${p.dlerr?errCell(p.dlerr):fmt(p.d7)}</td>
       <td>${fmt(p.d30)}</td>
-      <td>${fmt(p.d365)}</td>
-      <td>${p.peak?`<span class="${isBurst?'burst':''}">${fmt(p.peak)}</span><br><span class="status">${p.peakDay||''}</span>`:'–'}</td>
-      <td><span class="sig-${sg.k}">${sg.t}</span></td>
-      <td>${p.dependents==null?(p.deperr?'<span class="err">'+errLabel(p.deperr)+'</span>':'…'):`<b style="color:${p.dependents>0?'var(--green)':'var(--dim)'}">${fmt(p.dependents)}</b>${p.directDeps!=null?`<br><span class="status">${fmt(p.directDeps)} direct</span>`:''}`}</td>
-      <td>${p.repoFull?(p.stars==null?(p.gherr?'<span class="err">'+errLabel(p.gherr)+'</span>':'…'):fmt(p.stars)):'–'}</td>
+      <td>${p.dTotal==null?'–':fmt(p.dTotal)+(p.rangeDays?` <span class="status">(${p.rangeDays}d)</span>`:'')}</td>
+      <td>${p.peak?`${p.peakDay||''} (${fmt(p.peak)})`:'–'}</td>
+      <td>${p.dependents==null?(p.deperr?errCell(p.deperr):'…'):`<b style="color:${p.dependents>0?'var(--green)':'var(--dim)'}">${fmt(p.dependents)}</b>${(p.directDeps!=null&&p.directDeps!==p.dependents)?` <span class="status">(${fmt(p.directDeps)} direct)</span>`:''}`}</td>
+      <td>${p.repoFull?(p.stars==null?(p.gherr?errCell(p.gherr):'…'):fmt(p.stars)):'–'}</td>
       <td>${p.repoFull?(p.prs==null?'…':p.prs):'–'}</td>
+      <td><span class="sig-${sg.k}">${sg.t}</span></td>
       <td><span class="dot ${st.c}"></span>${st.t}</td>
     </tr>`;
   }).join("");
 }
-function renderChart(){
-  const base=PKGS.find(p=>p.dates&&p.dates.length); if(!base){ if(chart)chart.destroy(); return; }
-  const labels=base.dates, agg=new Array(labels.length).fill(0);
-  PKGS.forEach(p=>{ if(p.series&&p.series.length===labels.length) p.series.forEach((v,i)=>agg[i]+=v); });
+function renderChart(arr){
+  const map={};
+  arr.forEach(p=>{ if(p.series&&p.dates&&p.series.length===p.dates.length) p.dates.forEach((d,i)=>{ map[d]=(map[d]||0)+p.series[i]; }); });
+  const labels=Object.keys(map).sort();
+  const note=document.getElementById("burstnote");
+  if(!labels.length){ if(chart){chart.destroy();chart=null;} note.textContent="No download data to chart."; return; }
+  const agg=labels.map(d=>map[d]);
   const mean=agg.reduce((a,b)=>a+b,0)/agg.length;
   const std=Math.sqrt(agg.reduce((a,b)=>a+(b-mean)**2,0)/agg.length);
   const thr=Math.max(mean+4*std,200);
-  const ptC=agg.map(v=>v>thr?"#ff6b6b":"rgba(0,0,0,0)"), ptR=agg.map(v=>v>thr?4:0);
+  const ptC=agg.map(v=>v>thr?"#ffcc66":"rgba(0,0,0,0)"), ptR=agg.map(v=>v>thr?4:0);
   if(chart)chart.destroy();
   chart=new Chart(document.getElementById("chart"),{type:"line",
     data:{labels,datasets:[{data:agg,borderColor:"#00d4ff",backgroundColor:"rgba(0,212,255,.12)",fill:true,tension:.25,pointRadius:ptR,pointBackgroundColor:ptC,borderWidth:1.5}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{ticks:{color:"#9a9ab0",maxTicksLimit:12},grid:{color:"#2a2a44"}},y:{ticks:{color:"#9a9ab0"},grid:{color:"#2a2a44"}}}}});
   const bursts=[]; agg.forEach((v,i)=>{if(v>thr)bursts.push({day:labels[i],v});});
-  const note=document.getElementById("burstnote");
   if(!bursts.length){ note.textContent="No major bursts — downloads are steady or low."; return; }
-  const lines=bursts.slice(-8).map(b=>{ const i=labels.indexOf(b.day); let top=null,tv=0;
-    PKGS.forEach(p=>{if(p.series&&p.series.length===labels.length&&p.series[i]>tv){tv=p.series[i];top=p.name;}});
-    return `<b>${b.day}</b>: ${fmt(b.v)} dl (mostly <code>${top}</code> ≈ ${fmt(tv)})`; });
+  const lines=bursts.slice(-8).map(b=>{ let top=null,tv=0;
+    arr.forEach(p=>{ if(p.series&&p.dates){ const idx=p.dates.indexOf(b.day); if(idx>=0&&p.series[idx]>tv){tv=p.series[idx];top=p.name;} } });
+    return `<b>${b.day}</b>: ${fmt(b.v)} dl${top?` (mostly <code>${top}</code> ≈ ${fmt(tv)})`:''}`; });
   note.innerHTML="<b>Bursts (day &gt; "+fmt(Math.round(thr))+", usually mirrors/scanners):</b><br>"+lines.join("<br>");
+}
+function applyView(){
+  const arr=visible();
+  renderKpis(arr); renderTable(arr); renderChart(arr); renderChips();
+  const el=document.getElementById("showing"); if(el) el.textContent="Showing "+arr.length+" of "+PKGS.length;
+}
+
+/* ---------- welcome ---------- */
+function fileToTextarea(ev,id){ const f=ev.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const ta=document.getElementById(id); ta.value=(ta.value?ta.value+"\n":"")+r.result; if(id==="welcome-input") updateWelcomeCount(); }; r.readAsText(f); }
+function updateWelcomeCount(){ const n=parseList(document.getElementById("welcome-input").value).length; document.getElementById("welcome-count").textContent=n?n+" package(s) detected":""; }
+function startFromWelcome(){ const list=parseList(document.getElementById("welcome-input").value); if(!list.length){ alert("Paste at least one package name."); return; } setList(list); document.getElementById("welcome").classList.add("hide"); boot(); }
+
+/* ---------- settings ---------- */
+function openSettings(){
+  document.getElementById("settings-input").value=getList().join("\n");
+  const s=getSettings();
+  document.getElementById("th-deps").value=s.popDeps;
+  document.getElementById("th-stars").value=s.popStars;
+  document.getElementById("th-dl").value=s.popDl;
+  document.getElementById("settings").classList.remove("hide");
+}
+function closeSettings(){ document.getElementById("settings").classList.add("hide"); }
+function readThresholds(){
+  const num=(id,d)=>{ const v=parseInt(document.getElementById(id).value,10); return isNaN(v)||v<0?d:v; };
+  setSettings({popDeps:num("th-deps",DEF_SET.popDeps),popStars:num("th-stars",DEF_SET.popStars),popDl:num("th-dl",DEF_SET.popDl)});
+}
+function saveSettings(){
+  readThresholds();
+  const list=parseList(document.getElementById("settings-input").value);
+  if(!list.length){ if(!confirm("Empty list — clear everything and show the welcome screen?")) return; setList([]); closeSettings(); boot(); return; }
+  setList(list); closeSettings(); boot();
+}
+function appendFile(ev){ const f=ev.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const ta=document.getElementById("settings-input"); ta.value=(ta.value?ta.value+"\n":"")+r.result; }; r.readAsText(f); }
+function clearAll(){ if(!confirm("Remove all tracked packages?")) return; setList([]); try{localStorage.removeItem(CACHE_KEY);}catch(e){} closeSettings(); boot(); }
+
+/* ---------- export ---------- */
+function exportJson(){
+  if(!PKGS.length){ alert("Nothing to export yet — load some packages first."); return; }
+  const out={};
+  PKGS.forEach(p=>{ out[p.id]={
+    registry:p.registry, name:p.name, type:p.type||null, latest:p.latest||null, published:p.published||null,
+    downloads7d:p.d7??null, downloads30d:p.d30??null, downloadsTotal:p.dTotal??null, rangeDays:p.rangeDays??null,
+    peak:p.peak??null, peakDay:p.peakDay||null, useSignal:p.signal?p.signal.t:null,
+    dependents:p.dependents??null, directDependents:p.directDeps??null, stars:p.stars??null, openPRs:p.prs??null,
+    status:statusOf(p).t, repo:p.repoFull||null, url:pkgUrl(p)
+  }; });
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="packagechecker-"+todayStr()+".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
 }
 
 /* ---------- orchestration ---------- */
 async function loadAll(force=false){
   if(loading) return;
-  const list=getList(); if(!list.length){ boot(); return; }
+  const list=activeList(); if(!list.length){ return; }
   const sub=document.getElementById("subline");
 
-  // Use today's cached result unless forced (Reload) or the list changed
-  if(!force){
-    const c=loadCache();
-    if(c && c.date===todayStr() && sameList(c.list,list) && Array.isArray(c.pkgs)){
-      PKGS=c.pkgs;
-      renderKpis(); renderTable(); renderChart();
-      sub.textContent=PKGS.length+" packages · cached "+c.date+" · hit Reload to refresh";
-      return;
-    }
+  // Reuse today's cached results; only fetch new / changed packages.
+  let cachedMap={};
+  if(!force){ const c=loadCache(); if(c && c.date===todayStr() && Array.isArray(c.pkgs)) c.pkgs.forEach(p=>{ if(p&&p.id) cachedMap[p.id]=p; }); }
+  PKGS=list.map(id=>cachedMap[id]||parseId(id));
+  const toFetch=PKGS.filter(p=>!cachedMap[p.id]);
+
+  if(!toFetch.length){
+    applyView(); saveCache();
+    sub.textContent=PKGS.length+" packages · cached "+todayStr()+" · hit Reload to refresh";
+    return;
   }
 
-  PKGS=list.map(n=>({name:n}));
-  const n=PKGS.length;
-  showLoader("Collecting data for "+n+" package"+(n>1?"s":"")+"…");
+  const cachedCount=PKGS.length-toFetch.length, n=toFetch.length;
+  showLoader("Collecting "+n+" package"+(n>1?"s":"")+(cachedCount?" ("+cachedCount+" cached)":"")+"…");
 
-  // Phase 1 — metadata
-  log("Fetching package metadata (registry.npmjs.org)…","acc");
-  for(let i=0;i<n;i++){ const p=PKGS[i];
+  log("Fetching package metadata…","acc");
+  for(let i=0;i<n;i++){ const p=toFetch[i];
     setProgress(i/n*25,"Metadata "+(i+1)+"/"+n+" — "+p.name);
     await fetchMeta(p);
-    log(p.metaerr ? "⚠ "+p.name+" — not found on npm"
-                  : "• "+p.name+" → "+p.type+" · v"+p.latest+(p.repoFull?" · "+p.repoFull:" · no repo"),
-        p.metaerr?"warn":"ok");
+    log(p.metaerr?"⚠ "+REG_LABEL[p.registry]+":"+p.name+" — not found":"• "+REG_LABEL[p.registry]+":"+p.name+" → "+p.type+" · v"+p.latest+(p.repoFull?" · "+p.repoFull:""), p.metaerr?"warn":"ok");
   }
-  renderKpis(); renderTable();
 
-  // Phase 2 — downloads
-  log("Fetching 12-month download history (api.npmjs.org)…","acc");
-  for(let i=0;i<n;i++){ const p=PKGS[i];
+  log("Fetching download history…","acc");
+  for(let i=0;i<n;i++){ const p=toFetch[i];
     setProgress(25+i/n*25,"Downloads "+(i+1)+"/"+n+" — "+p.name);
     await fetchDownloads(p);
-    log(p.dlerr ? "⚠ "+p.name+" — downloads "+errLabel(p.dlerr)
-                : "• "+p.name+": "+fmt(p.d30)+"/30d · "+fmt(p.d365)+"/365d"+(p.signal?" · "+p.signal.t:""),
-        p.dlerr?"warn":"dim");
+    log(p.dlerr?"⚠ "+p.name+" — downloads "+errLabel(p.dlerr):"• "+p.name+": "+fmt(p.d30)+"/30d · "+fmt(p.dTotal)+"/"+p.rangeDays+"d"+(p.signal?" · "+p.signal.t:""), p.dlerr?"warn":"dim");
   }
-  renderKpis(); renderTable(); renderChart();
 
-  // Phase 3 — dependents
   log("Fetching dependents (deps.dev)…","acc");
-  for(let i=0;i<n;i++){ const p=PKGS[i];
+  for(let i=0;i<n;i++){ const p=toFetch[i];
     setProgress(50+i/n*25,"Dependents "+(i+1)+"/"+n+" — "+p.name);
     await fetchDependents(p);
-    log(p.deperr ? "⚠ "+p.name+" — dependents "+errLabel(p.deperr)
-                 : "• "+p.name+": "+fmt(p.dependents)+" dependents"+(p.directDeps!=null?" ("+fmt(p.directDeps)+" direct)":""),
-        p.deperr?"warn":"dim");
-    renderTable(); renderKpis();
+    log(p.deperr?"⚠ "+p.name+" — dependents "+errLabel(p.deperr):"• "+p.name+": "+fmt(p.dependents)+" dependents"+(p.directDeps!=null?" ("+fmt(p.directDeps)+" direct)":""), p.deperr?"warn":"dim");
   }
 
-  // Phase 4 — GitHub
-  const repos=PKGS.filter(p=>p.repoFull);
-  log("Fetching GitHub stars / PRs — "+repos.length+" repo"+(repos.length===1?"":"s")+"…","acc");
-  for(let i=0;i<repos.length;i++){ const p=repos[i];
-    setProgress(75+(i/(repos.length||1))*25,"GitHub "+(i+1)+"/"+repos.length+" — "+p.repoFull);
-    await fetchGithub(p);
-    log(p.gherr ? "⚠ "+p.repoFull+" — "+(p.gherr==='rate'?'rate-limited (GitHub 60/h)':errLabel(p.gherr))
-                : "• "+p.repoFull+": ★"+fmt(p.stars)+" · "+(p.prs==null?"?":p.prs)+" open PR"+(p.prs===1?"":"s"),
-        p.gherr?"warn":"dim");
-    renderTable(); renderKpis();
+  // GitHub: seed from repos we already know, then fetch only new unique repos.
+  const ghCache={};
+  PKGS.forEach(p=>{ if(cachedMap[p.id]&&p.repoFull&&p.stars!=null&&!(p.repoFull in ghCache)) ghCache[p.repoFull]={stars:p.stars,prs:p.prs,gherr:p.gherr}; });
+  const needRepos=[...new Set(toFetch.filter(p=>p.repoFull).map(p=>p.repoFull))].filter(r=>!(r in ghCache));
+  log("Fetching GitHub stars / PRs — "+needRepos.length+" unique repo"+(needRepos.length===1?"":"s")+"…","acc");
+  for(let i=0;i<needRepos.length;i++){ const repo=needRepos[i];
+    setProgress(75+(i/(needRepos.length||1))*25,"GitHub "+(i+1)+"/"+needRepos.length+" — "+repo);
+    const res=await fetchGithubRepo(repo); ghCache[repo]=res;
+    log(res.gherr?"⚠ "+repo+" — "+(res.gherr==='rate'?'rate-limited (GitHub 60/h)':errLabel(res.gherr)):"• "+repo+": ★"+fmt(res.stars)+" · "+(res.prs==null?"?":res.prs)+" open PR"+(res.prs===1?"":"s"), res.gherr?"warn":"dim");
   }
+  PKGS.forEach(p=>{ if(p.repoFull&&ghCache[p.repoFull]){ const r=ghCache[p.repoFull]; p.stars=r.stars; p.prs=r.prs; p.gherr=r.gherr; } });
 
+  applyView();
   setProgress(100,"Done");
   saveCache();
-  log("✓ Done — "+n+" package"+(n>1?"s":"")+" updated &amp; cached for "+todayStr()+".","ok");
-  sub.textContent=n+" packages · updated "+new Date().toLocaleString();
+  log("✓ Done — "+n+" fetched, "+cachedCount+" from cache.","ok");
+  sub.textContent=PKGS.length+" packages · updated "+new Date().toLocaleString();
   await sleep(550);
   hideLoader();
 }
-function boot(){
-  const list=getList();
+async function boot(){
+  const params=new URLSearchParams(location.search);
+  const remote=params.get("list")||params.get("gist");
+  if(remote){
+    REMOTE=remote;
+    if(!REMOTE_LIST){
+      document.getElementById("subline").textContent="Loading shared list from URL…";
+      try{ REMOTE_LIST=parseList(await fetchText(remote)); }catch(e){ REMOTE_LIST=[]; }
+    }
+  }
+  const list=activeList();
   if(!list.length){
     document.getElementById("app").classList.add("hide");
-    document.getElementById("welcome").classList.remove("hide");
-    document.getElementById("subline").textContent="No packages yet";
+    if(REMOTE){ document.getElementById("welcome").classList.add("hide"); document.getElementById("subline").textContent="Could not load a package list from that URL"; }
+    else { document.getElementById("welcome").classList.remove("hide"); document.getElementById("subline").textContent="No packages yet"; }
     return;
   }
   document.getElementById("welcome").classList.add("hide");
@@ -580,14 +709,25 @@ function boot(){
   loadAll(false);
 }
 
-const ASC_FIRST=["name","type","latest","published"]; // text columns sort ascending on first click
+/* ---------- events ---------- */
+const ASC_FIRST=["name","type","latest","published"];
 document.querySelectorAll("#tbl th").forEach(th=>th.addEventListener("click",()=>{
   const k=th.dataset.k;
-  if(sortKey===k) sortDir*=-1;
-  else { sortKey=k; sortDir=ASC_FIRST.includes(k)?1:-1; }
-  renderTable();
+  if(sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=ASC_FIRST.includes(k)?1:-1; }
+  applyView();
 }));
+document.querySelectorAll('#filterbar [data-reg]').forEach(b=>b.addEventListener("click",()=>{
+  const r=b.dataset.reg;
+  if(r==="all"){ FILTERS.npm=FILTERS.pypi=FILTERS.crates=true; } else { FILTERS[r]=!FILTERS[r]; }
+  saveFilters(); applyView();
+}));
+document.querySelectorAll('#filterbar [data-f]').forEach(b=>b.addEventListener("click",()=>{
+  const f=b.dataset.f; FILTERS[f]=!FILTERS[f]; saveFilters(); applyView();
+}));
+document.getElementById("clearf").addEventListener("click",()=>{ FILTERS=defFilters(); document.getElementById("search").value=""; saveFilters(); applyView(); });
+document.getElementById("search").addEventListener("input",e=>{ FILTERS.search=e.target.value.trim(); saveFilters(); applyView(); });
 document.getElementById("welcome-input").addEventListener("input",updateWelcomeCount);
+document.getElementById("search").value=FILTERS.search||"";
 boot();
 </script>
 </body>
