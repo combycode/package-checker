@@ -69,6 +69,8 @@
   .ghi svg{width:14px;height:14px;fill:currentColor;display:block}
   .note{background:var(--bg2);border-left:3px solid var(--accent);padding:10px 14px;border-radius:6px;color:var(--muted);font-size:.82rem;margin-top:14px}
   footer{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.78rem;text-align:center}
+  footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
   /* overlay */
   .overlay{position:fixed;inset:0;background:rgba(10,10,24,.82);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
   .modal{background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:640px;width:100%;padding:26px 28px;max-height:90vh;overflow:auto}
@@ -226,7 +228,7 @@
     </section>
   </div>
 
-  <footer>PackageChecker · static, client-side only · data from npm, PyPI (pypistats), crates.io, deps.dev &amp; GitHub · results cached per day · GitHub API unauthenticated (60 req/h per IP).</footer>
+  <footer>PackageChecker · static, client-side only · data from npm, PyPI (pypistats), crates.io, deps.dev &amp; GitHub · results cached per day · GitHub API unauthenticated (60 req/h per IP) · <a href="https://corsfix.com" target="_blank">CORS proxy by Corsfix</a></footer>
 </div>
 
 <script>

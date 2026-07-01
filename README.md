@@ -74,6 +74,10 @@ The included `_headers` file is applied automatically (security headers + a CSP 
 
 No accounts, no tracking, no backend. Your list, filters and cached results never leave your browser. API calls go directly from your browser to the public services listed above.
 
+## Credits
+
+[CORS proxy by Corsfix](https://corsfix.com) — used to fetch PyPI download stats (pypistats.org) from the browser.
+
 ## License
 
 [MIT](LICENSE) © CombyCode Inc.
